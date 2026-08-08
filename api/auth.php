@@ -1,0 +1,113 @@
+<?php
+session_start();
+require_once '../config/database.php';
+header('Content-Type: application/json');
+
+$action = $_POST['action'] ?? '';
+
+if ($action === 'register') {
+    $username = trim($_POST['username'] ?? '');
+    $email = trim($_POST['email'] ?? '');
+    $password = $_POST['password'] ?? '';
+    
+    if (empty($username) || empty($email) || empty($password)) {
+        echo json_encode(['status' => 'error', 'message' => 'Please provide a Username, Email, and Password to complete your account setup.']);
+        exit;
+    }
+    
+    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        echo json_encode(['status' => 'error', 'message' => 'Invalid email format.']);
+        exit;
+    }
+    
+    if (strlen($password) <= 6) {
+        echo json_encode(['status' => 'error', 'message' => 'Password must be more than 6 characters long.']);
+        exit;
+    }
+    
+    // Explicit duplicate check
+    $checkStmt = $pdo->prepare("SELECT username, email FROM users WHERE username = ? OR LOWER(email) = LOWER(?)");
+    $checkStmt->execute([$username, $email]);
+    $existingUsers = $checkStmt->fetchAll();
+    
+    if ($existingUsers) {
+        foreach ($existingUsers as $row) {
+            // Strictly check username with EXACT casing
+            if ($row['username'] === $username) {
+                echo json_encode(['status' => 'error', 'message' => 'Username already exists.']);
+                exit;
+            }
+            // Email is case-insensitive
+            if (strtolower($row['email']) === strtolower($email)) {
+                echo json_encode(['status' => 'error', 'message' => 'Email already exists.']);
+                exit;
+            }
+        }
+    }
+    
+    $hashed_password = password_hash($password, PASSWORD_DEFAULT);
+    
+    try {
+        $stmt = $pdo->prepare("INSERT INTO users (username, email, password) VALUES (?, ?, ?)");
+        $stmt->execute([$username, $email, $hashed_password]);
+        
+        $_SESSION['user_id'] = $pdo->lastInsertId();
+        $_SESSION['username'] = $username;
+        $_SESSION['role'] = 'student';
+        
+        echo json_encode(['status' => 'success', 'message' => 'Registration successful.', 'role' => 'student']);
+    } catch (PDOException $e) {
+        if ($e->getCode() == 23000) { // Duplicate entry
+            echo json_encode(['status' => 'error', 'message' => 'Username or email already exists.']);
+        } else {
+            echo json_encode(['status' => 'error', 'message' => 'Database error.']);
+        }
+    }
+} elseif ($action === 'login') {
+    $identifier = trim($_POST['login_identifier'] ?? '');
+    $password = $_POST['password'] ?? '';
+    
+    if (empty($identifier) || empty($password)) {
+        echo json_encode(['status' => 'error', 'message' => 'Email/Username and password are required.']);
+        exit;
+    }
+    
+    try {
+        $stmt = $pdo->prepare("SELECT * FROM users WHERE email = ? OR username = ?");
+        $stmt->execute([$identifier, $identifier]);
+        $user = $stmt->fetch();
+        
+        if ($user && ($user['username'] === $identifier || $user['email'] === $identifier) && password_verify($password, $user['password'])) {
+            $_SESSION['user_id'] = $user['id'];
+            $_SESSION['username'] = $user['username'];
+            $_SESSION['role'] = $user['role'];
+            $_SESSION['primary_subject'] = $user['primary_subject'] ?? null;
+            
+            if ($user['role'] === 'faculty') {
+                $subStmt = $pdo->prepare("SELECT subject FROM faculty_additional_subjects WHERE user_id = ?");
+                $subStmt->execute([$user['id']]);
+                $_SESSION['additional_subjects'] = $subStmt->fetchAll(PDO::FETCH_COLUMN);
+            } else {
+                $_SESSION['additional_subjects'] = [];
+            }
+            
+            echo json_encode(['status' => 'success', 'message' => 'Login successful.', 'role' => $user['role']]);
+        } else {
+            echo json_encode(['status' => 'error', 'message' => 'Invalid credentials.']);
+        }
+    } catch (PDOException $e) {
+        echo json_encode(['status' => 'error', 'message' => 'Database error.']);
+    }
+} elseif ($action === 'logout') {
+    session_unset();
+    session_destroy();
+    echo json_encode(['status' => 'success', 'message' => 'Logged out successfully.']);
+} elseif ($action === 'check') {
+    if (isset($_SESSION['user_id'])) {
+        echo json_encode(['status' => 'success', 'logged_in' => true, 'username' => $_SESSION['username'], 'role' => $_SESSION['role'], 'primary_subject' => $_SESSION['primary_subject'] ?? null, 'additional_subjects' => $_SESSION['additional_subjects'] ?? []]);
+    } else {
+        echo json_encode(['status' => 'success', 'logged_in' => false]);
+    }
+} else {
+    echo json_encode(['status' => 'error', 'message' => 'Invalid action.']);
+}
