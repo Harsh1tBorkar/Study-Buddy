@@ -914,12 +914,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 const res = await fetch('api/request_otp.php', { method: 'POST', body: formData });
                 const data = await res.json();
                 if (data.status === 'success') {
-                    // Show Dev Alert
-                    const devAlert = document.getElementById('otp-dev-alert');
-                    if (devAlert) devAlert.style.display = 'block';
-                    const codeEl = document.getElementById('dev-otp-code');
-                    if (codeEl) codeEl.textContent = data.dev_mode_otp;
-
                     // Switch Forms
                     otpReqForm.style.display = 'none';
                     const verifyForm = document.getElementById('otp-verify-form');
