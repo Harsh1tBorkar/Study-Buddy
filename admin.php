@@ -44,6 +44,26 @@ if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'], ['principle', '
             </tbody>
         </table>
     </div>
+    <?php if ($_SESSION['role'] === 'faculty'): ?>
+    <h2 style="margin-top: 2rem;">Manage My Uploads</h2>
+    <div style="overflow-x: auto;">
+        <table class="admin-table" id="faculty-uploads-table">
+            <thead>
+                <tr>
+                    <th>Title</th>
+                    <th>Subject / Tag</th>
+                    <th>Status</th>
+                    <th>Date</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- Populated by JS -->
+            </tbody>
+        </table>
+    </div>
+    <?php endif; ?>
+
     <h2 style="margin-top: 2rem;">Reported Documents</h2>
     <div style="overflow-x: auto;">
         <table class="admin-table" id="admin-reports-table">

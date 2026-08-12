@@ -36,6 +36,19 @@ $username = $_SESSION['username'] ?? '';
 </nav>
 
 <main>
+    <!-- Notice Board -->
+    <div class="card glass" style="margin-bottom: 2rem;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+            <h2 style="margin: 0; color: var(--text-primary);">Notice Board</h2>
+            <?php if ($is_principle || $is_faculty): ?>
+                <button class="btn btn-primary" onclick="openModal('create-notice-modal')">Create Notice</button>
+            <?php endif; ?>
+        </div>
+        <div id="notice-board-list" style="display: flex; flex-direction: column; gap: 1rem; max-height: 400px; overflow-y: auto;">
+            <!-- Notices loaded via JS -->
+        </div>
+    </div>
+
     <div class="search-container">
         <input type="text" id="search-input" placeholder="Search for documents...">
         <select id="subject-filter">
@@ -83,18 +96,17 @@ $username = $_SESSION['username'] ?? '';
                 <textarea name="description" rows="3"></textarea>
             </div>
             <div class="form-group">
-                <label>Subject</label>
-                <select name="subject" required>
-                    <option value="FCSN">FCSN</option>
-                    <option value="DSDA">DSDA</option>
-                    <option value="FCPP">FCPP</option>
-                    <option value="Physics">Physics</option>
-                    <option value="EM-2">EM-2</option>
+                <label>Department</label>
+                <select name="department" id="upload-department" required>
+                    <option value="">Select Department...</option>
+                    <option value="Computer Engineering">Computer Engineering</option>
+                    <option value="Information Technology">Information Technology</option>
                 </select>
             </div>
             <div class="form-group">
-                <label>Tag</label>
-                <select name="tag" required>
+                <label>Semester (Tag)</label>
+                <select name="tag" id="upload-semester" required>
+                    <option value="">Select Semester...</option>
                     <option value="FY - BTECH - SEM 1">FY - BTECH - SEM 1</option>
                     <option value="FY - BTECH - SEM 2">FY - BTECH - SEM 2</option>
                     <option value="SY - BTECH - SEM 3">SY - BTECH - SEM 3</option>
@@ -103,6 +115,12 @@ $username = $_SESSION['username'] ?? '';
                     <option value="TY - BTECH - SEM 6">TY - BTECH - SEM 6</option>
                     <option value="LY - BTECH - SEM 7">LY - BTECH - SEM 7</option>
                     <option value="LY - BTECH - SEM 8">LY - BTECH - SEM 8</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Subject</label>
+                <select name="subject" id="upload-subject" required disabled>
+                    <option value="">Select Department and Semester first...</option>
                 </select>
             </div>
             <div class="form-group">
@@ -180,6 +198,70 @@ $username = $_SESSION['username'] ?? '';
         </form>
     </div>
 </div>
+
+<!-- Create Notice Modal -->
+<?php if ($is_principle || $is_faculty): ?>
+<div class="modal-overlay" id="create-notice-modal">
+    <div class="modal-content glass">
+        <div class="modal-header">
+            <h2>Create Notice</h2>
+            <button class="close-btn" onclick="closeModal('create-notice-modal')">&times;</button>
+        </div>
+        <form id="create-notice-form">
+            <div class="form-group">
+                <label>Title</label>
+                <input type="text" name="title" required>
+            </div>
+            <div class="form-group">
+                <label>Message</label>
+                <textarea name="message" rows="4" required></textarea>
+            </div>
+            
+            <?php if ($is_principle): ?>
+                <div class="form-group" style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem;">
+                    <input type="checkbox" id="global-broadcast" checked>
+                    <label for="global-broadcast" style="margin: 0;">Global Broadcast (Send to everyone)</label>
+                </div>
+            <?php endif; ?>
+
+            <div id="notice-targets" <?= $is_principle ? 'style="display:none;"' : '' ?>>
+                <div class="form-group">
+                    <label>Target Department</label>
+                    <select name="target_department" id="notice-department" <?= $is_faculty ? 'required' : '' ?>>
+                        <option value="">Select Department...</option>
+                        <option value="Computer Engineering">Computer Engineering</option>
+                        <option value="Information Technology">Information Technology</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Target Semester</label>
+                    <select name="target_semester" id="notice-semester" <?= $is_faculty ? 'required' : '' ?>>
+                        <option value="">Select Semester...</option>
+                        <option value="FY - BTECH - SEM 1">FY - BTECH - SEM 1</option>
+                        <option value="FY - BTECH - SEM 2">FY - BTECH - SEM 2</option>
+                        <option value="SY - BTECH - SEM 3">SY - BTECH - SEM 3</option>
+                        <option value="SY - BTECH - SEM 4">SY - BTECH - SEM 4</option>
+                        <option value="TY - BTECH - SEM 5">TY - BTECH - SEM 5</option>
+                        <option value="TY - BTECH - SEM 6">TY - BTECH - SEM 6</option>
+                        <option value="LY - BTECH - SEM 7">LY - BTECH - SEM 7</option>
+                        <option value="LY - BTECH - SEM 8">LY - BTECH - SEM 8</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Target Subject</label>
+                    <select name="target_subject" id="notice-subject" <?= $is_faculty ? 'required' : '' ?> disabled>
+                        <option value="">Select Department and Semester first...</option>
+                    </select>
+                </div>
+            </div>
+
+            <div style="display: flex; gap: 1rem;">
+                <button type="submit" class="btn btn-primary" style="flex: 1;">Publish Notice</button>
+            </div>
+        </form>
+    </div>
+</div>
+<?php endif; ?>
 
 <script src="assets/js/main.js"></script>
 </body>

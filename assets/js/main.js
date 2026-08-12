@@ -133,6 +133,56 @@ if (logoutBtn) {
     });
 }
 
+// Cascading Dropdowns Logic
+const uploadDept = document.getElementById('upload-department');
+const uploadSem = document.getElementById('upload-semester');
+const uploadSubj = document.getElementById('upload-subject');
+
+async function fetchSubjects() {
+    if (!uploadDept || !uploadSem || !uploadSubj) return;
+    
+    const dept = uploadDept.value;
+    const sem = uploadSem.value;
+    
+    if (!dept || !sem) {
+        uploadSubj.innerHTML = '<option value="">Select Department and Semester first...</option>';
+        uploadSubj.disabled = true;
+        return;
+    }
+    
+    uploadSubj.innerHTML = '<option value="">Loading subjects...</option>';
+    uploadSubj.disabled = true;
+    
+    try {
+        const res = await fetch(`api/get_subjects.php?department=${encodeURIComponent(dept)}&semester=${encodeURIComponent(sem)}`);
+        const data = await res.json();
+        
+        if (data.status === 'success') {
+            uploadSubj.innerHTML = '<option value="">Select Subject...</option>';
+            if (data.data.length === 0) {
+                uploadSubj.innerHTML = '<option value="">No subjects found for this selection</option>';
+            } else {
+                data.data.forEach(subj => {
+                    const opt = document.createElement('option');
+                    opt.value = subj;
+                    opt.textContent = subj;
+                    uploadSubj.appendChild(opt);
+                });
+                uploadSubj.disabled = false;
+            }
+        } else {
+            showToast('Failed to load subjects', 'error');
+            uploadSubj.innerHTML = '<option value="">Error loading subjects</option>';
+        }
+    } catch (e) {
+        showToast('Error connecting to server', 'error');
+        uploadSubj.innerHTML = '<option value="">Error loading subjects</option>';
+    }
+}
+
+if (uploadDept) uploadDept.addEventListener('change', fetchSubjects);
+if (uploadSem) uploadSem.addEventListener('change', fetchSubjects);
+
 // Upload Handler
 const uploadForm = document.getElementById('upload-form');
 if (uploadForm) {
@@ -329,6 +379,96 @@ if (commentForm) {
         }
     });
 }
+// Faculty Manage Uploads Logic
+async function loadFacultyUploads() {
+    const tbody = document.querySelector('#faculty-uploads-table tbody');
+    if (!tbody) return;
+
+    try {
+        const res = await fetch(`${API_BASE}/get_faculty_uploads.php`);
+        const data = await res.json();
+
+        if (data.status === 'success') {
+            tbody.innerHTML = '';
+            if (data.data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5">No uploads found.</td></tr>';
+                return;
+            }
+
+            data.data.forEach(doc => {
+                const tr = document.createElement('tr');
+                tr.id = `faculty-doc-row-${doc.id}`;
+                
+                let statusColor = doc.status === 'approved' ? 'var(--accent-color)' : (doc.status === 'rejected' ? '#e74c3c' : 'var(--text-secondary)');
+                
+                tr.innerHTML = `
+                    <td id="faculty-doc-title-${doc.id}">${doc.title}</td>
+                    <td>${doc.subject} / ${doc.tag}</td>
+                    <td><span class="badge" style="background-color:${statusColor}20; color:${statusColor}; border-color:${statusColor}40;">${doc.status}</span></td>
+                    <td>${new Date(doc.created_at).toLocaleDateString()}</td>
+                    <td class="admin-actions">
+                        <button class="btn btn-secondary" onclick="renameFacultyDocument(${doc.id}, '${doc.title.replace(/'/g, "\\'")}')">Edit</button>
+                        <button class="btn btn-primary" style="background:#e74c3c;" onclick="deleteFacultyDocument(${doc.id})">Delete</button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+    } catch (err) {
+        showToast('Failed to load faculty uploads.', 'error');
+    }
+}
+
+async function renameFacultyDocument(id, oldName) {
+    const newName = prompt("Enter new document name:", oldName);
+    if (!newName || newName === oldName) return;
+
+    const formData = new FormData();
+    formData.append('document_id', id);
+    formData.append('new_name', newName);
+
+    try {
+        const res = await fetch(`${API_BASE}/rename_document.php`, { method: 'POST', body: formData });
+        const data = await res.json();
+        
+        if (data.status === 'success') {
+            showToast(data.message, 'success');
+            document.getElementById(`faculty-doc-title-${id}`).textContent = newName;
+            // update onclick parameter as well to reflect new name
+            loadFacultyUploads(); // Reloading ensures clean state
+        } else {
+            showToast(data.message, 'error');
+        }
+    } catch (e) {
+        showToast('Rename failed.', 'error');
+    }
+}
+
+async function deleteFacultyDocument(id) {
+    if (!confirm("Are you sure you want to delete this document?")) return;
+
+    const formData = new FormData();
+    formData.append('document_id', id);
+
+    try {
+        const res = await fetch(`${API_BASE}/delete_document.php`, { method: 'POST', body: formData });
+        const data = await res.json();
+        
+        if (data.status === 'success') {
+            showToast(data.message, 'success');
+            const row = document.getElementById(`faculty-doc-row-${id}`);
+            if (row) row.remove();
+        } else {
+            showToast(data.message, 'error');
+        }
+    } catch (e) {
+        showToast('Delete failed.', 'error');
+    }
+}
+
+if (document.getElementById('faculty-uploads-table')) {
+    loadFacultyUploads();
+}
 
 // Admin Logic
 async function loadAdminPending() {
@@ -493,6 +633,151 @@ async function updateFaculty(id) {
 
 if (document.getElementById('faculty-table')) {
     loadFacultyList();
+}
+
+// Notice Board Logic
+const noticeBoardList = document.getElementById('notice-board-list');
+
+async function loadNotices() {
+    if (!noticeBoardList) return;
+    
+    try {
+        const res = await fetch(`${API_BASE}/get_notices.php`);
+        const data = await res.json();
+        
+        if (data.status === 'success') {
+            noticeBoardList.innerHTML = '';
+            if (data.data.length === 0) {
+                noticeBoardList.innerHTML = '<p style="color: var(--text-secondary);">No notices available.</p>';
+                return;
+            }
+            
+            data.data.forEach(notice => {
+                const el = document.createElement('div');
+                el.className = 'notice-card glass';
+                el.style.padding = '1rem';
+                el.style.borderRadius = 'var(--radius)';
+                el.style.borderLeft = notice.author_role === 'principal' ? '4px solid var(--accent-color)' : '4px solid #3498db';
+                
+                let targetInfo = 'Global Broadcast';
+                if (notice.target_department || notice.target_semester || notice.target_subject) {
+                    targetInfo = [notice.target_department, notice.target_semester, notice.target_subject].filter(Boolean).join(' / ');
+                }
+                
+                el.innerHTML = `
+                    <h3 style="margin-top:0; margin-bottom:0.5rem;">${notice.title}</h3>
+                    <p style="margin-bottom:0.5rem; white-space: pre-wrap;">${notice.message}</p>
+                    <small style="color: var(--text-secondary);">By ${notice.author_name} (${notice.author_role}) &bull; ${targetInfo} &bull; ${new Date(notice.created_at).toLocaleDateString()}</small>
+                `;
+                noticeBoardList.appendChild(el);
+            });
+        }
+    } catch (err) {
+        noticeBoardList.innerHTML = '<p style="color: #e74c3c;">Failed to load notices.</p>';
+    }
+}
+
+if (noticeBoardList) {
+    loadNotices();
+}
+
+const createNoticeForm = document.getElementById('create-notice-form');
+if (createNoticeForm) {
+    const globalBroadcast = document.getElementById('global-broadcast');
+    const noticeTargets = document.getElementById('notice-targets');
+    const noticeDept = document.getElementById('notice-department');
+    const noticeSem = document.getElementById('notice-semester');
+    const noticeSubj = document.getElementById('notice-subject');
+
+    if (globalBroadcast && noticeTargets) {
+        globalBroadcast.addEventListener('change', (e) => {
+            if (e.target.checked) {
+                noticeTargets.style.display = 'none';
+                if (noticeDept) noticeDept.required = false;
+                if (noticeSem) noticeSem.required = false;
+                if (noticeSubj) noticeSubj.required = false;
+            } else {
+                noticeTargets.style.display = 'block';
+            }
+        });
+    }
+
+    async function fetchNoticeSubjects() {
+        if (!noticeDept || !noticeSem || !noticeSubj) return;
+        const dept = noticeDept.value;
+        const sem = noticeSem.value;
+        if (!dept || !sem) {
+            noticeSubj.innerHTML = '<option value="">Select Department and Semester first...</option>';
+            noticeSubj.disabled = true;
+            return;
+        }
+        noticeSubj.innerHTML = '<option value="">Loading subjects...</option>';
+        noticeSubj.disabled = true;
+        try {
+            const res = await fetch(`api/get_subjects.php?department=${encodeURIComponent(dept)}&semester=${encodeURIComponent(sem)}`);
+            const data = await res.json();
+            if (data.status === 'success') {
+                noticeSubj.innerHTML = '<option value="">Select Subject...</option>';
+                if (data.data.length === 0) {
+                    noticeSubj.innerHTML = '<option value="">No subjects found</option>';
+                } else {
+                    data.data.forEach(subj => {
+                        const opt = document.createElement('option');
+                        opt.value = subj;
+                        opt.textContent = subj;
+                        noticeSubj.appendChild(opt);
+                    });
+                    noticeSubj.disabled = false;
+                }
+            }
+        } catch (e) {
+            noticeSubj.innerHTML = '<option value="">Error loading subjects</option>';
+        }
+    }
+
+    if (noticeDept) noticeDept.addEventListener('change', fetchNoticeSubjects);
+    if (noticeSem) noticeSem.addEventListener('change', fetchNoticeSubjects);
+
+    createNoticeForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const formData = new FormData(createNoticeForm);
+        
+        // If global broadcast is checked, remove target fields so they are sent empty
+        if (globalBroadcast && globalBroadcast.checked) {
+            formData.set('target_department', '');
+            formData.set('target_semester', '');
+            formData.set('target_subject', '');
+        }
+
+        const submitBtn = createNoticeForm.querySelector('button[type="submit"]');
+        const originalText = submitBtn.innerText;
+        submitBtn.innerText = 'Publishing...';
+        submitBtn.disabled = true;
+
+        try {
+            const res = await fetch(`${API_BASE}/create_notice.php`, { method: 'POST', body: formData });
+            const data = await res.json();
+            
+            if (data.status === 'success') {
+                showToast(data.message, 'success');
+                closeModal('create-notice-modal');
+                createNoticeForm.reset();
+                if (globalBroadcast) globalBroadcast.dispatchEvent(new Event('change')); // reset toggles
+                if (noticeSubj) {
+                    noticeSubj.innerHTML = '<option value="">Select Department and Semester first...</option>';
+                    noticeSubj.disabled = true;
+                }
+                loadNotices();
+            } else {
+                showToast(data.message, 'error');
+            }
+        } catch (err) {
+            showToast('Network error occurred.', 'error');
+        } finally {
+            submitBtn.innerText = originalText;
+            submitBtn.disabled = false;
+        }
+    });
 }
 
 // Notifications Logic
